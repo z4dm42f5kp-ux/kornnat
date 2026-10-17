@@ -21,6 +21,8 @@ Nothing here has been deleted. Each item is a task for you to do. Items are orde
 9. **Close the feature gaps against competitors (Section 10).**
 10. **QA, installers, signing, release (Sections 11 and 12).**
 
+**Security and code-quality pipelines (Section 13)** run alongside all of this. Do 13.1 straight away: it's cheap, and it protects your signing keys before you add your own.
+
 ---
 
 ## 1. Legal and licensing (read first)
@@ -91,7 +93,7 @@ Run this **after** you've renamed the root container in HISE and saved it as `Xm
 5. commits.
 
 ```bash
-export NEW="MyGranular" && export HISEAPP="/Applications/HISE.app" && cd /path/to/kornnat && git rm -r -q --cached .xcode-build && rm -rf .xcode-build && git rm -r -q DspNetworks XmlPresetBackups "oi grandad.xml" && git rm -r -q "oi grandad/CIExports" "oi grandad/Binaries" && git rm -r -q --cached "oi grandad/DspNetworks/Binaries/Builds" "oi grandad/DspNetworks/Binaries/dll" && git mv "oi grandad" "$NEW" && perl -pi -e 's#/Users/rick/#/Users/$ENV{USER}/#g; s#\\Users\\rick\\#\\Users\\$ENV{USER}\\#g; s#Oi-Grandad#$ENV{NEW}#g; s#oi grandad#$ENV{NEW}#g; s#oi-grandad#\L$ENV{NEW}\E#g' .github/workflows/linux.yml .github/workflows/macos-signed.yml .github/workflows/windows.yml .gitignore AudioUnit.pkgproj VST3.pkgproj "$NEW/BuildScripts/prepare_ci_exports.sh" "$NEW/BuildScripts/test_build_macos.sh.sh" "$NEW/BuildScripts/BUILD.md" && chmod +x "$NEW/BuildScripts/prepare_ci_exports.sh" && "$NEW/BuildScripts/prepare_ci_exports.sh" --hise-bin "$HISEAPP" --hise-source "$HOME/Documents/GitHub/HISE" && git add -A && git status --short | head -50 && git commit -m "Rename project to $NEW, drop stale duplicates and regenerate CI exports"
+export NEW="MyGranular" && export HISEAPP="/Applications/HISE.app" && cd /path/to/kornnat && git rm -r -q --cached .xcode-build && rm -rf .xcode-build && git rm -r -q DspNetworks XmlPresetBackups "oi grandad.xml" && git rm -r -q "oi grandad/CIExports" "oi grandad/Binaries" && git rm -r -q --cached "oi grandad/DspNetworks/Binaries/Builds" "oi grandad/DspNetworks/Binaries/dll" && git mv "oi grandad" "$NEW" && perl -pi -e 's#/Users/rick/#/Users/$ENV{USER}/#g; s#\\Users\\rick\\#\\Users\\$ENV{USER}\\#g; s#Oi-Grandad#$ENV{NEW}#g; s#oi grandad#$ENV{NEW}#g; s#oi-grandad#\L$ENV{NEW}\E#g' .github/workflows/linux.yml .github/workflows/macos-signed.yml .github/workflows/windows.yml $(ls .github/workflows/security.yml 2>/dev/null) .gitignore AudioUnit.pkgproj VST3.pkgproj "$NEW/BuildScripts/prepare_ci_exports.sh" "$NEW/BuildScripts/test_build_macos.sh.sh" "$NEW/BuildScripts/BUILD.md" && chmod +x "$NEW/BuildScripts/prepare_ci_exports.sh" && "$NEW/BuildScripts/prepare_ci_exports.sh" --hise-bin "$HISEAPP" --hise-source "$HOME/Documents/GitHub/HISE" && git add -A && git status --short | head -50 && git commit -m "Rename project to $NEW, drop stale duplicates and regenerate CI exports"
 ```
 
 Before you trust it, check that the new `CIExports/*/Builds/**` files contain your own HISE path and that the `perl` rewrites in the three workflows match it. If your HISE checkout lives somewhere else, edit the `s#/Users/rick/...#` patterns in all three workflow files to match.
@@ -315,6 +317,129 @@ The bar is set by products such as Arturia Pigments' granular engine, Output Por
 - [ ] **Versioning.** `Version` is still `2.5.0` (the original's). Restart at `1.0.0` under your name, and keep a CHANGELOG.
 - [ ] **Brand basics:** a name check (trademark search), a domain, a website, a support email, an EULA that doesn't contradict GPL, a privacy statement if you add update checks, and pricing.
 - [ ] **Update checker and crash reporting**, both opt-in.
+
+---
+
+## 13. Security and code-quality pipelines
+
+### What the repo has today
+
+Almost nothing. The only integrity check is that each workflow verifies the checked-out HISE commit matches the submodule pin.
+
+| Area | Current state |
+|---|---|
+| PR builds | **None.** All three workflows run only on `push` to `main` and `workflow_dispatch`. Pull requests are never built or checked. |
+| Workflow permissions | No `permissions:` block, so jobs get the repo's default `GITHUB_TOKEN` scope. |
+| Action pinning | Actions are pinned to tags (`actions/checkout@v4`, `upload-artifact@v4`, `setup-msbuild@v2`), not commit SHAs. |
+| Signing secrets | The Apple Developer ID certificate and notarization password are loaded on every push to `main`. They aren't protected by a GitHub Environment with required reviewers. |
+| Static analysis | No CodeQL, clang-tidy, cppcheck or compiler warnings-as-errors. |
+| Runtime checks | No AddressSanitizer or UndefinedBehaviorSanitizer builds, no fuzzing, no unit tests. |
+| Dependencies | No Dependabot. HISE, JUCE and the VST3 SDK come from a personal HISE fork, and CI regex-patches their source at build time (Section 4). |
+| Secret scanning | No gitleaks or trufflehog job. Turn on GitHub secret scanning and push protection as well. |
+| Policy and provenance | No `SECURITY.md`, no SBOM, no release checksums, no build attestations. Windows binaries are unsigned. |
+
+### Where the C++ attack surface is
+
+Audio plugins load files that users download from strangers, so these are the code paths worth hardening:
+
+- **Preset and state loading:** user presets (`.preset` XML), DAW state chunks (`setStateInformation`), sample maps and expansions.
+- **Audio file loading** into the granular node: WAV and AIFF parsing (JUCE), then `setExternalData` and `refreshSourceState` in `granular_player_stepquant_density_hybrid_native.h`.
+- **Sample reads in the engine.** `readStereoPairAt` (native `.h:1136`) only guards the upper end of the buffer (`size() <= i + 1`). Nothing checks `i < 0`, so if a reverse or ping-pong mode ever produces a negative position, that's an out-of-bounds read. Confirm it with an ASan build (13.2) instead of assuming it can't happen.
+- **Parameter values:** non-finite or out-of-range values from hosts and automation. Only `GrainMs` is guarded with `std::isfinite` today.
+
+### 13.1 Do now (cheap, low risk)
+
+- [ ] **Build pull requests.** Add a `pull_request` trigger to the Linux and Windows workflows. Keep signing and notarization out of PR runs.
+- [ ] **Least-privilege tokens.** Add `permissions: contents: read` at the top of every workflow, and grant more only to the job that needs it.
+- [ ] **Pin every third-party action to a full commit SHA**, with the tag as a comment. Let Dependabot bump them.
+- [ ] **Protect signing secrets.**
+  - Move the Apple and Windows signing secrets into a GitHub **Environment** (for example `release`) with a required reviewer.
+  - Run signing only on version tags, not every push to `main`.
+  - Protect `main`: require PRs and passing checks.
+- [ ] **Dependabot** for `github-actions` and `gitsubmodule`.
+- [ ] **Secret scanning:** enable GitHub secret scanning and push protection in repo settings, and add a gitleaks job. The gitleaks action needs a free licence key for organisation-owned repos; personal repos don't.
+- [ ] **`SECURITY.md`** with a private reporting route. Enable GitHub private vulnerability reporting.
+- [ ] **cppcheck on first-party C++** (`DspNetworks/ThirdParty/*.h`). It currently passes clean on both native headers, so it can block from day one.
+
+One command creates the Dependabot config, a `security.yml` workflow (cppcheck plus gitleaks, run on PRs, pushes to `main` and weekly) and `SECURITY.md`, then commits them. Run it from the repo root before the Section 2.3 rename; the rename command also rewrites the path inside `security.yml`.
+
+```bash
+cd /path/to/kornnat && mkdir -p .github/workflows && tee .github/dependabot.yml >/dev/null <<'EOF' && tee .github/workflows/security.yml >/dev/null <<'EOF2' && tee SECURITY.md >/dev/null <<'EOF3' && git add .github/dependabot.yml .github/workflows/security.yml SECURITY.md && git commit -m "Add security CI, Dependabot and security policy" && git push
+version: 2
+updates:
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+  - package-ecosystem: "gitsubmodule"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+EOF
+name: Security
+
+on:
+  pull_request:
+  push:
+    branches: [ main ]
+  schedule:
+    - cron: '17 3 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  cppcheck:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install cppcheck
+        run: sudo apt-get update && sudo apt-get install -y cppcheck
+      - name: Static analysis of first-party C++
+        shell: bash
+        run: |
+          cppcheck --enable=warning,performance,portability --inline-suppr \
+            --suppress=missingIncludeSystem --suppress=missingInclude \
+            --language=c++ --std=c++17 --error-exitcode=1 \
+            "oi grandad/DspNetworks/ThirdParty/"*.h
+
+  secrets-scan:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+EOF2
+# Security policy
+
+Please report vulnerabilities privately through GitHub's "Report a vulnerability" button on the Security tab. Do not open a public issue.
+
+We aim to acknowledge reports within 5 working days.
+EOF3
+```
+
+cppcheck checks headers on their own, without JUCE and HISE, so the analysis is shallow. 13.2 covers the deeper checks.
+
+### 13.2 Do once you have the offline test harness (Section 5.3)
+
+- [ ] **CodeQL for C++** (`github/codeql-action`, `security-extended` queries). Run it on a build of the Linux target, and exclude `HISE/`, `JUCE/` and generated `JuceLibraryCode/` so it reports on your code.
+- [ ] **clang-tidy** with `bugprone-*`, `cert-*`, `cppcoreguidelines-*`, `performance-*` and `concurrency-*`, using `compile_commands.json` from the Linux Makefile build (generate it with `bear`). Start in report-only mode, then block on new findings.
+- [ ] **Warnings as errors on your own code:** `-Wall -Wextra -Wshadow -Wconversion` on clang and gcc, `/W4` on MSVC.
+- [ ] **ASan and UBSan job:** build the offline render harness with `-fsanitize=address,undefined` and run every playback, direction and scrub mode, pitch extremes, `MaxGrains` 1 to 32, tiny and empty samples, mono and 32-channel files, and NaN or Inf parameters.
+- [ ] **ThreadSanitizer** on a harness that loads samples and changes parameters from a second thread while audio renders. The `DataTryReadLock` and reset path in Section 5.1 is the main target.
+- [ ] **Fuzzing (libFuzzer)** on three targets: user preset and state XML loading, audio file loading into the granular node, and the engine's parameter and render path. Seed it with real presets and audio files, and run it nightly.
+- [ ] **pluginval** at strictness 10 on every PR build (Section 11). It catches thread-safety and state-handling crashes that hosts trigger.
+
+### 13.3 Do before the first public release
+
+- [ ] **Provenance for every release binary:** an SBOM (for example `anchore/sbom-action` / syft), SHA-256 checksums, and `actions/attest-build-provenance` attestations.
+- [ ] **Signed Windows binaries** (Section 4), plus the existing macOS signing and notarization, run only from protected tag builds.
+- [ ] **Your own HISE fork with the CI patches committed** (Section 4), so builds don't depend on regex edits to third-party source.
+- [ ] **Track security fixes in HISE and JUCE** (watch their releases) and rebase your HISE pin on a schedule.
 
 ---
 
