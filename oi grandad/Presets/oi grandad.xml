@@ -8074,7 +8074,7 @@
                          visible="0"/>
               <Component type="ScriptLabel" id="Label21" x="668.0" y="614.0" width="160.0"
                          height="30.0" fontName="Montserrat" fontSize="30.0" textColour="3706906574"
-                         text="Oi, Grandad!" editable="0" alignment="left" itemColour2="3001935573"
+                         text="MyGranular" editable="0" alignment="left" itemColour2="3001935573"
                          itemColour="15848371"/>
               <Component type="ScriptPanel" id="Panel3" x="143.0" y="237.0" itemColour="4278190080"
                          itemColour2="4278190080" popupMenuItems="AIR&#10;BANGER&#10;Bad Guy m7_9&#10;Bad Guy_m7th&#10;DW_Dom7&#10;Eggz_AugMaj7&#10;FormerWoosher_sus7_9&#10;Hardly_MajMin7&#10;MIGHT&#10;Mod_AugDom7&#10;Synthetic_Dom&#10;USBnoise&#10;Wonk_maj&#10;disaster&#10;edust_maj&#10;fast_maj7&#10;glassy_min7&#10;modaldrony&#10;mover1&#10;mover2&#10;mover3&#10;mover4&#10;mover5&#10;shiv01&#10;shiv2&#10;shiv3&#10;sto_maj5911&#10;water_HalfDim&#10;wobbldrone01"

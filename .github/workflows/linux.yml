@@ -253,7 +253,7 @@ jobs:
 
           app_file="$STANDALONE_ROOT/Builds/LinuxMakefile/build/oi grandad"
           if [[ -f "$app_file" ]]; then
-            zip -j "$GITHUB_WORKSPACE/dist/oi-grandad-linux-app.zip" "$app_file"
+            zip -j "$GITHUB_WORKSPACE/dist/mygranular-linux-app.zip" "$app_file"
           fi
 
           if ! compgen -G "dist/*.zip" > /dev/null; then
