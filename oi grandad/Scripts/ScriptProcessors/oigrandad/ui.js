@@ -170,7 +170,7 @@ UPP.setMouseCallback(function(event)
 {
   if (event.clicked)
   {
-    Engine.openWebsite("https://modularsamples.gumroad.com/l/gyckl");
+    Engine.openWebsite(""); // TODO: link to your own page or remove the UPP panel
   } 
   else 
   {
@@ -185,7 +185,7 @@ PlgInPk.setMouseCallback(function(event)
 {
   if (event.clicked)
   {
-    Engine.openWebsite("https://modularsamples.gumroad.com/l/esioxy");
+    Engine.openWebsite(""); // TODO: link to your own page or remove the PlgInPk panel
   } 
   else 
   {
@@ -200,7 +200,7 @@ XolLink.setMouseCallback(function(event)
 {
   if (event.clicked)
   {
-    Engine.openWebsite("https://github.com/publicsamples/Xolotl");
+    Engine.openWebsite(""); // TODO: link to your own page or remove the XolLink panel
   } 
   else 
   {

@@ -1,11 +1,11 @@
 <?xml version="1.0" encoding="UTF-8"?>
 
 <ProjectSettings>
-  <Name value="oi grandad"/>
+  <Name value="MyGranular"/>
   <Version value="2.5.0"/>
   <Description value=""/>
-  <BundleIdentifier value="com.modularsamples.product"/>
-  <PluginCode value="Msog"/>
+  <BundleIdentifier value="com.mycompany.mygranular"/>
+  <PluginCode value="Mygr"/>
   <EmbedAudioFiles value="1"/>
   <EmbedImageFiles value="1"/>
   <SupportFullDynamicsHLAC value="No"/>

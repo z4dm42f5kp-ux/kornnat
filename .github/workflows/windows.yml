@@ -274,7 +274,7 @@ jobs:
           if (Test-Path $appDir) {
             $appExe = Get-ChildItem -Path $appDir -Filter *.exe -File
             if ($appExe.Count -gt 0) {
-              $zipPath = Join-Path "dist" "oi-grandad-windows-app.zip"
+              $zipPath = Join-Path "dist" "mygranular-windows-app.zip"
               Compress-Archive -Path (Join-Path $appDir "*") -DestinationPath $zipPath -Force
             }
           }

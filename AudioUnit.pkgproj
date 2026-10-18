@@ -698,7 +698,7 @@
 			<key>FOLLOW_SYMBOLIC_LINKS</key>
 			<false/>
 			<key>IDENTIFIER</key>
-			<string>com.mygreatcompany.pkg.OiGrandadV2</string>
+			<string>com.mycompany.pkg.MyGranular</string>
 			<key>LOCATION</key>
 			<integer>0</integer>
 			<key>NAME</key>
